@@ -3,6 +3,10 @@ import math
 from ninetoothed.errors import NineToothedGridError, NineToothedLaunchError
 
 
+def get_max_grid_size(max_grid_size=None):
+    return _normalize_max_grid_size(max_grid_size)
+
+
 def make_launch_grid(total_programs, max_grid_size=None):
     total_programs = int(total_programs)
 
@@ -12,7 +16,7 @@ def make_launch_grid(total_programs, max_grid_size=None):
     if total_programs == 0:
         return (0,)
 
-    x_limit, y_limit, z_limit = _normalize_max_grid_size(max_grid_size)
+    x_limit, y_limit, z_limit = get_max_grid_size(max_grid_size)
 
     grid_x = min(total_programs, x_limit)
     remaining_programs = _ceil_div(total_programs, grid_x)
