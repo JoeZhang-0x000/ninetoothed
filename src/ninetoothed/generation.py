@@ -84,6 +84,8 @@ class CodeGenerator(ast.NodeTransformer):
                 f"@triton.jit\n{dependency}" for dependency in dependencies
             )
 
+        self._kernel_name = kernel_name
+
         self.launch_func_name = f"launch_{kernel_name}"
 
         self._caller = caller
