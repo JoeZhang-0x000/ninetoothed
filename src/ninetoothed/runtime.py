@@ -7,6 +7,13 @@ def get_max_grid_size(max_grid_size=None):
     return _normalize_max_grid_size(max_grid_size)
 
 
+def get_effective_grid_x_limit(num_warps=1, max_grid_size=None):
+    grid_x_limit = get_max_grid_size(max_grid_size)[0]
+    num_warps = max(1, int(num_warps))
+
+    return max(1, grid_x_limit // num_warps)
+
+
 def make_launch_grid(total_programs, max_grid_size=None):
     total_programs = int(total_programs)
 

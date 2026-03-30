@@ -143,6 +143,7 @@ class CodeGenerator(ast.NodeTransformer):
                 ast.ImportFrom(
                     module="ninetoothed.runtime",
                     names=[
+                        ast.alias(name="get_effective_grid_x_limit"),
                         ast.alias(name="get_max_grid_size"),
                         ast.alias(name="make_launch_grid"),
                         ast.alias(name="wrap_kernel_launch_error"),
@@ -685,7 +686,7 @@ class CodeGenerator(ast.NodeTransformer):
                 f"""
 {type(self)._PID_OFFSET_PARAM} = 0
 _ninetoothed_total_programs = {total_programs_expr}
-_ninetoothed_grid_x_limit = get_max_grid_size()[0]
+_ninetoothed_grid_x_limit = get_effective_grid_x_limit({self._num_warps!r})
 for {type(self)._PID_OFFSET_PARAM} in range(0, _ninetoothed_total_programs, _ninetoothed_grid_x_limit):
     _ninetoothed_grid = (min(_ninetoothed_grid_x_limit, _ninetoothed_total_programs - {type(self)._PID_OFFSET_PARAM}),)
     try:

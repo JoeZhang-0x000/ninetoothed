@@ -50,7 +50,7 @@ def test_auto_tuning_generation(
         if auto_tuning_should_be_disabled:
             assert "application_with_auto_tuning" not in contents
             assert "num_warps=" in contents and "num_stages=" in contents
-            assert "_ninetoothed_grid_x_limit = get_max_grid_size()[0]" in contents
+            assert "_ninetoothed_grid_x_limit = get_effective_grid_x_limit(" in contents
             assert "for ninetoothed_pid_offset in range(" in contents
         else:
             assert "application_with_auto_tuning" in contents
