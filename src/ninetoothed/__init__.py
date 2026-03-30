@@ -13,6 +13,11 @@ from ninetoothed.dtype import (
     uint32,
     uint64,
 )
+from ninetoothed.errors import (
+    NineToothedError,
+    NineToothedGridError,
+    NineToothedLaunchError,
+)
 from ninetoothed.eval import _eval as eval
 from ninetoothed.eval import _subs as subs
 from ninetoothed.jit import jit
@@ -37,6 +42,9 @@ __all__ = [
     "subs",
     "jit",
     "make",
+    "NineToothedError",
+    "NineToothedGridError",
+    "NineToothedLaunchError",
     "uint8",
     "uint16",
     "uint32",

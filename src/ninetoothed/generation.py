@@ -135,6 +135,19 @@ class CodeGenerator(ast.NodeTransformer):
     def visit_Module(self, node):
         self.generic_visit(node)
 
+        if self._caller == "torch":
+            node.body.insert(
+                0,
+                ast.ImportFrom(
+                    module="ninetoothed.runtime",
+                    names=[
+                        ast.alias(name="make_launch_grid"),
+                        ast.alias(name="wrap_kernel_launch_error"),
+                    ],
+                    level=0,
+                ),
+            )
+
         if self._autotune is not None:
             func_with_auto_tuning = f"{Symbol(self._autotune)}({self._func_def.name})"
 
@@ -572,30 +585,7 @@ class CodeGenerator(ast.NodeTransformer):
                     next_power_of_2_params_without_prefixes,
                 )
             ]
-            + [
-                ast.Expr(
-                    ast.Call(
-                        func=ast.Subscript(
-                            value=ast.Name(id=self._func_name, ctx=ast.Load()),
-                            slice=self._generate_grid(),
-                            ctx=ast.Load(),
-                        ),
-                        args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
-                        keywords=[
-                            ast.keyword(
-                                arg="num_warps",
-                                value=ast.Constant(value=self._num_warps),
-                            ),
-                            ast.keyword(
-                                arg="num_stages",
-                                value=ast.Constant(value=self._num_stages),
-                            ),
-                        ]
-                        if self._autotune is None
-                        else [],
-                    )
-                )
-            ],
+            + self._generate_launch_body(params),
             decorator_list=[],
         )
 
@@ -634,6 +624,116 @@ class CodeGenerator(ast.NodeTransformer):
         self.raw_grid = copy.deepcopy(grid)
 
         return grid
+
+    def _generate_runtime_grid(self):
+        num_elements = functools.reduce(lambda x, y: x * y, self._args[0].shape)
+
+        return ast.parse(
+            f"lambda meta: make_launch_grid({num_elements})", mode="eval"
+        ).body
+
+    def _generate_launch_body(self, params):
+        keywords = (
+            [
+                ast.keyword(
+                    arg="num_warps",
+                    value=ast.Constant(value=self._num_warps),
+                ),
+                ast.keyword(
+                    arg="num_stages",
+                    value=ast.Constant(value=self._num_stages),
+                ),
+            ]
+            if self._autotune is None
+            else []
+        )
+        launch_call = ast.Expr(
+            ast.Call(
+                func=ast.Subscript(
+                    value=ast.Name(id=self._func_name, ctx=ast.Load()),
+                    slice=(
+                        ast.Name(id="_ninetoothed_grid", ctx=ast.Load())
+                        if self._caller == "torch"
+                        else self._generate_grid()
+                    ),
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
+                keywords=keywords,
+            )
+        )
+
+        if self._caller != "torch":
+            return [launch_call]
+
+        return [
+            ast.Assign(
+                targets=[ast.Name(id="_ninetoothed_grid", ctx=ast.Store())],
+                value=self._generate_runtime_grid(),
+            ),
+            ast.Try(
+                body=[launch_call],
+                handlers=[
+                    ast.ExceptHandler(
+                        type=ast.Name(id="Exception", ctx=ast.Load()),
+                        name="error",
+                        body=[
+                            ast.Raise(
+                                exc=ast.Call(
+                                    func=ast.Name(
+                                        id="wrap_kernel_launch_error",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[ast.Name(id="error", ctx=ast.Load())],
+                                    keywords=[
+                                        ast.keyword(
+                                            arg="kernel_name",
+                                            value=ast.Constant(value=self._kernel_name),
+                                        ),
+                                        ast.keyword(
+                                            arg="source_path",
+                                            value=ast.Name(
+                                                id="__file__", ctx=ast.Load()
+                                            ),
+                                        ),
+                                        ast.keyword(
+                                            arg="grid",
+                                            value=ast.Name(
+                                                id="_ninetoothed_grid",
+                                                ctx=ast.Load(),
+                                            ),
+                                        ),
+                                        ast.keyword(
+                                            arg="num_warps",
+                                            value=ast.Constant(
+                                                value=(
+                                                    self._num_warps
+                                                    if self._autotune is None
+                                                    else None
+                                                )
+                                            ),
+                                        ),
+                                        ast.keyword(
+                                            arg="num_stages",
+                                            value=ast.Constant(
+                                                value=(
+                                                    self._num_stages
+                                                    if self._autotune is None
+                                                    else None
+                                                )
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                cause=ast.Name(id="error", ctx=ast.Load()),
+                            )
+                        ],
+                    )
+                ],
+                orelse=[],
+                finalbody=[],
+            ),
+        ]
 
     def _generate_load(self, tensor, indices=()):
         if tensor.ndim == 0:
@@ -674,7 +774,11 @@ class CodeGenerator(ast.NodeTransformer):
         )
 
     def _generate_pid_indices(self, tensor):
-        self._invariants[type(self)._NAME_FOR_PID] = call("program_id", 0)
+        self._invariants[type(self)._NAME_FOR_PID] = call("program_id", 0) + call(
+            "num_programs", 0
+        ) * (
+            call("program_id", 1) + call("num_programs", 1) * call("program_id", 2)
+        )
 
         indices = list(Tensor._unravel_index(type(self)._NAME_FOR_PID, tensor.shape))
 

@@ -53,6 +53,12 @@ def test_auto_tuning_generation(
         else:
             assert "application_with_auto_tuning" in contents
 
+        assert "make_launch_grid" in contents
+        assert "wrap_kernel_launch_error" in contents
+        assert "num_programs(0)" in contents
+        assert "program_id(1)" in contents
+        assert "program_id(2)" in contents
+
 
 @pytest.mark.parametrize("_device", get_available_devices())
 def test_arrangement_returning_a_single_tensor(_device):
