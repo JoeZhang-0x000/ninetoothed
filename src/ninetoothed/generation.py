@@ -634,6 +634,11 @@ class CodeGenerator(ast.NodeTransformer):
             f"lambda meta: make_launch_grid({num_elements})", mode="eval"
         ).body
 
+    def _generate_runtime_grid_value(self):
+        num_elements = functools.reduce(lambda x, y: x * y, self._args[0].shape)
+
+        return ast.parse(f"make_launch_grid({num_elements})", mode="eval").body
+
     def _generate_launch_body(self, params):
         keywords = (
             [
@@ -668,10 +673,16 @@ class CodeGenerator(ast.NodeTransformer):
         if self._caller != "torch":
             return [launch_call]
 
+        runtime_grid = (
+            self._generate_runtime_grid_value()
+            if self._autotune is None
+            else self._generate_runtime_grid()
+        )
+
         return [
             ast.Assign(
                 targets=[ast.Name(id="_ninetoothed_grid", ctx=ast.Store())],
-                value=self._generate_runtime_grid(),
+                value=runtime_grid,
             ),
             ast.Try(
                 body=[launch_call],

@@ -50,8 +50,10 @@ def test_auto_tuning_generation(
         if auto_tuning_should_be_disabled:
             assert "application_with_auto_tuning" not in contents
             assert "num_warps=" in contents and "num_stages=" in contents
+            assert "_ninetoothed_grid = make_launch_grid(" in contents
         else:
             assert "application_with_auto_tuning" in contents
+            assert "_ninetoothed_grid = lambda meta: make_launch_grid(" in contents
 
         assert "make_launch_grid" in contents
         assert "wrap_kernel_launch_error" in contents
