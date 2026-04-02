@@ -96,6 +96,8 @@ class CodeGenerator(ast.NodeTransformer):
 
         self._max_num_configs = max_num_configs
 
+        self._default_meta_config = {}
+
         self._context = inspect.get_annotations(func)
 
         self._args = list(self._context.values())
@@ -503,6 +505,9 @@ class CodeGenerator(ast.NodeTransformer):
             ]
 
         if len(configs) <= 1:
+            self._default_meta_config = (
+                block_size_configs[0] if block_size_configs else {}
+            )
             return None
 
         return ast.Call(
@@ -591,7 +596,24 @@ class CodeGenerator(ast.NodeTransformer):
                     next_power_of_2_params_without_prefixes,
                 )
             ]
-            + self._generate_launch_body(params),
+            + (
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id=param, ctx=ast.Store())],
+                        value=ast.Constant(
+                            value=self._default_meta_config.get(param)
+                        ),
+                    )
+                    for param in meta
+                ]
+                if self._autotune is None and meta
+                else []
+            )
+            + self._generate_launch_body(
+                list(params) + list(meta)
+                if self._autotune is None and meta
+                else params
+            ),
             decorator_list=[],
         )
 
@@ -611,7 +633,8 @@ class CodeGenerator(ast.NodeTransformer):
 
                 return node
 
-        MetaEncloser(meta).visit(launch)
+        if self._autotune is not None:
+            MetaEncloser(meta).visit(launch)
 
         if self._caller == "torch":
             Torchifier().visit(launch)
